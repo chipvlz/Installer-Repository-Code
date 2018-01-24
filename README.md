@@ -1,4 +1,4 @@
-# Installer-Repository-Code
+# Installer Repository Code
 Installer PRELIMINARY repository code to set up your own Installer repository.
 
 Instctions for hosting your own repository in 2 minutes:
