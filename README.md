@@ -3,7 +3,7 @@ Installer PRELIMINARY repository code to set up your own Installer repository.
 
 Please note that this code is in the early stages of beta. It can change a lot for the public release of Installer.
 
-Instctions for hosting your own repository in 2 minutes:
+Instructions for hosting your own repository in 2 minutes:
 
 1. Upload all files via FTP
 2. In the folder packages, you can create folders, which will be treated by Installer as categories. 
