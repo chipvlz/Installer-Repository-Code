@@ -1,5 +1,7 @@
-# Installer Repository Code
+# Installer BETA Repository Code
 Installer PRELIMINARY repository code to set up your own Installer repository.
+
+Please note that this code is in the early stages of beta. It can change a lot for the public release of Installer.
 
 Instctions for hosting your own repository in 2 minutes:
 
