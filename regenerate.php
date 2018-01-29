@@ -10,7 +10,7 @@ if (!strlen(REGENERATE_SECRET))
 	die("Please set REGENERATE_SECRET in config.inc.php!");
 }
 
-if (!isset($_GET['secret']) || $_GET['secret'] != REGENERATE_SECRET)
+if (!isset($_GET['secret']) || $_GET['secret'] !== REGENERATE_SECRET)
 {
 	die("Secret phrase is invalid. Sorry.");
 }
@@ -20,6 +20,10 @@ if (!file_exists($icons_path))
 {
 	if (!@mkdir($icons_path, 0777))
 		die("Insufficient permissions to " . INFO_PATH . " - cannot create Icons directory. Please check the permissions, they should allow Web server to create files.");
+}
+
+if (!extension_loaded('zip')) {
+	die("ZIP extension is required, please install it.");
 }
 
 // Let's regenerate the indeces.
@@ -40,11 +44,11 @@ function GenerateIndex($os_version)
 	print "Generating index for firmware $os_version.\n";
 
 	$dirname = INFO_PATH;
-		
+
 	$no_symlink = true;
-	
+
 	$index = generate_index($dirname, INFO_PATH_URL);
-	
+
 	$INDEX = fopen($dirname."/index-" . $os_version . ".plist", "w");
 	if ($INDEX)
 	{
@@ -52,7 +56,7 @@ function GenerateIndex($os_version)
 		fclose($INDEX);
 		chmod($dirname."/index-" . $os_version . ".plist", 0666);
 	}
-	
+
 	print "\n";
 }
 
@@ -61,19 +65,19 @@ function CleanupOld()
 	$dir = opendir(INFO_PATH);
 	if (!$dir)
 		return;
-	
+
 	while ($file = readdir($dir))
 	{
 		$fullpath = INFO_PATH.'/'.$file;
-		
+
 		if ($file != '.' && $file != '..' && $file != 'icons')
 		{
 			$t = filemtime($fullpath);
-			
+
 			if ($t < (time() - CACHE_OLD_TTL))
 			{
 				print "Cleanup: $fullpath\n";
-				
+
 				if (is_dir($fullpath))
 				{
 					$handle = opendir($fullpath);
@@ -92,7 +96,7 @@ function generate_index($info_path, $info_url)
 {
 	global $index;
 	global $packages;
-	
+
 	$index = new DOMDocument();
 	$index->load('Info.plist');
 	$element = $index->getElementsByTagName('dict');
@@ -116,68 +120,71 @@ function gather_categories($info_path, $info_url)
 		{
 			if (substr($path, 0, 1) == '.')
 				continue;
-			
+
 			// traverse category
 			scan_category(PACKAGES_PATH . "/" . $path, $path, $info_path, $info_url);
 		}
 	}
-	
+
 	closedir($dir);
 }
 
 function scan_category($path, $category, $info_path, $info_url)
 {
 	global $packages, $index, $os_version;
-	
+
+	if (!is_dir($path))
+		return;
+
 	$dir = opendir($path);
 	if (!$dir)
 		return;
-		
+
 	$packages_added = 0;
 	$versions_skipped = 0;
-	
+
 	print "Scanning category '$category'...\n";
-	
+
 	$packages_to_add = array();
-	
+
 	while ($file = readdir($dir))
 	{
 		$fullpath = $path.'/'.$file;
-		
+
 		if (pathinfo($fullpath, PATHINFO_EXTENSION) == 'zip')
 		{
 			$pkgInfo = trim(get_from_zip($fullpath, 'Install.plist'));
-			
+
 			if (!$pkgInfo || !strlen($pkgInfo))
 			{
 				print "WARNING: Cannot add package $fullpath because Install.plist cannot be extracted.\n";
 			}
-			
+
 			if ($pkgInfo and strlen($pkgInfo))
 			{
 				$package = new DOMDocument;
 				$package->loadXML($pkgInfo);
-				
+
 				$r = parsePlist($package);
-				
+
 				if (!ConvertVersionStr($r['version']))		// Sanity checking of the version number
 				{
 					print "WARNING: Cannot add package $fullpath because version string (".$r['version'].") is malformed.\n";
 					continue;
-				}	
-					
+				}
+
 				if (isset($r['minOSRequired']))
 				{
 					if (ConvertVersionStr($os_version) < ConvertVersionStr($r['minOSRequired']))
 						continue;
 				}
-				
+
 				if (!isset($r['identifier']) && isset($r['bundleIdentifier']))
 					$r['identifier'] = $r['bundleIdentifier'];
-					
+
 				if (isset($r['bundleIdentifier']))
 					unset($r['bundleIdentifier']);
-				
+
 				if (isset($packages_to_add[$r['identifier']]))
 				{
 					// check version
@@ -185,53 +192,55 @@ function scan_category($path, $category, $info_path, $info_url)
 					$current_version = ConvertVersionStr($r['version']);
 					$existing_revision = ConvertRevision($packages_to_add[$r['identifier']]['version']);
 					$current_revision = ConvertRevision($r['version']);
-					
+
 					if ($existing_version > $current_version)
 					{
+						die(print_r($r['version'], true));
 						$versions_skipped++;
 						continue;
 					}
-					
+
 					if ($existing_version == $current_version && $existing_revision >= $current_revision)
 					{
+						die('toto 2');
 						$versions_skipped++;
 						continue;
 					}
 				}
-				
+
 				$r['fullpath'] = $fullpath; // don't forget to remove this
 				$r['package'] = $package;
 				$r['file'] = $file;
-				
+
 				$packages_to_add[$r['identifier']] = $r;
 			}
 		}
 	}
-	
+
 	foreach ($packages_to_add as $r)
 	{
 		$fullpath = $r['fullpath'];
 		$package = $r['package'];
 		$file = $r['file'];
-		
+
 		unset($r['package']);		// remove unneeded entries from the array
 		unset($r['fullpath']);
 		unset($r['file']);
-		
+
 		$dict = $package->createElement('dict');
-		
+
 		// Category
 		$dict->appendChild($package->createElement('key', 'category'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($category, ENT_QUOTES, 'UTF-8')));
-		
+
 		// Package date
 		$dict->appendChild($package->createElement('key', 'date'));
 		$dict->appendChild($package->createElement('string', filemtime($fullpath)));
-		
+
 		// Package ID
 		$dict->appendChild($package->createElement('key', 'identifier'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($r['identifier'], ENT_QUOTES, 'UTF-8')));
-		
+
 		// Package Name
 		$dict->appendChild($package->createElement('key', 'name'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($r['name'], ENT_QUOTES, 'UTF-8')));
@@ -239,7 +248,7 @@ function scan_category($path, $category, $info_path, $info_url)
 		// Package Version
 		$dict->appendChild($package->createElement('key', 'version'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($r['version'], ENT_QUOTES, 'UTF-8')));
-		
+
 		// Package Description
 		$dict->appendChild($package->createElement('key', 'description'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($r['description'], ENT_QUOTES, 'UTF-8')));
@@ -247,7 +256,7 @@ function scan_category($path, $category, $info_path, $info_url)
 		if (@$r['icon'])
 		{
 			$dict->appendChild($package->createElement('key', 'icon'));
-			$dict->appendChild($package->createElement('string', htmlspecialchars($r['icon'], ENT_QUOTES, 'UTF-8')));					
+			$dict->appendChild($package->createElement('string', htmlspecialchars($r['icon'], ENT_QUOTES, 'UTF-8')));
 		}
 		else
 		{	// Check the icon
@@ -257,7 +266,7 @@ function scan_category($path, $category, $info_path, $info_url)
 				$icon_file_name = $r['identifier'] . "-" . $r['version'] . ".png";
 				$icons_path = INFO_PATH . "/icons";
 				@mkdir($icons_path, 0777);
-				
+
 				$FILE = fopen($icons_path . '/' . $icon_file_name, "w");
 				if ($FILE)
 				{
@@ -268,25 +277,25 @@ function scan_category($path, $category, $info_path, $info_url)
 
 				$r['icon'] = INFO_PATH_URL . 'icons/' . $icon_file_name;
 				$dict->appendChild($package->createElement('key', 'icon'));
-				$dict->appendChild($package->createElement('string', htmlspecialchars($r['icon'], ENT_QUOTES, 'UTF-8')));	
+				$dict->appendChild($package->createElement('string', htmlspecialchars($r['icon'], ENT_QUOTES, 'UTF-8')));
 			}
-		}				
+		}
 
 		// And finally, more info location :)
 		$more_info_filename = rawurlencode($r['identifier']) . "-" . rawurlencode($r['version']) . "-" . $os_version . ".plist";
-		
+
 		$dict->appendChild($package->createElement('key', 'url'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($info_url . $more_info_filename, ENT_QUOTES, 'UTF-8')));
-		
+
 		$child = $index->importNode($dict, true);
 		$packages->appendChild($child);
-		
+
 		// And since we're at it, create the more info plist for the package
 		$r['size'] = filesize($fullpath);
 		$r['hash'] = md5_file($fullpath);
 		$r['location'] = PACKAGES_PATH_URL . rawurlencode($category) . "/" . rawurlencode($file);
 		unset($r['scripts']);
-						
+
 		// Spool it into the more info file
 		$FILE = fopen($info_path . '/' . $more_info_filename, "w");
 		if ($FILE)
@@ -295,36 +304,29 @@ function scan_category($path, $category, $info_path, $info_url)
 			fclose($FILE);
 			chmod($info_path . '/' . $more_info_filename, 0666);
 		}
-		
-		$packages_added++;		
+
+		$packages_added++;
 	}
-	
+
 	print "Category '$category' scanned, $packages_added packages added, $versions_skipped packages skipped.\n";
 }
 
-function get_from_zip($zip_path, $filename)                                                                                                                                                                                                   
-{                                                                                                                                                                                                                                             
-	if (function_exists('shell_exec'))                                                                                                                                                                                                            
-	{                                                                                                                                                                                                                                             
-	    $result = shell_exec('unzip -pC ' . escapeshellarg($zip_path) . ' ' . escapeshellarg($filename));                                                                                                                                     
-	}                                                                                                                                                                                                                                             
-	else                                                                                                                                                                                                                                          
-	{                                                                                                                                                                                                                                             
-		$zip = new ZipArchive;                                                                                                                                                                                                                
-		$res = $zip->open($zip_path);                                                                                                                                                                                                         
-		if ($res === true)
-		{                                                                                                                                                                                                                  
-			$result = $zip->getFromName($filename);                                                                                                                                                                                               
-                                                                                                                                                                                                                                     
-			$zip->close();                                                                                                                                                                                                                        
-		}                                                                                                                                                                                                                                                                                                                                                                                                                                                               
-		else                                                                                                                                                                                                                                  
-		{                                                                                                                                                                                                                                     
-			echo "Error: Zip Error";                                                                                                                                                                                                              		
-		}                                                                                                                                                                                                                                  
-	}                                                                                                                                                                                                                                         
-
-	return $result;                                                                                                                                                                                                                       
+function get_from_zip($zip_path, $filename)
+{
+	$zip = new ZipArchive;
+	$res = $zip->open($zip_path);
+	if ($res === true) {
+		$basename = basename($zip_path, '.zip');
+		$result = $zip->getFromName($basename . '/' . $filename);
+		if (empty($result)) {
+			$result = $zip->getFromName($filename);
+		}
+		$zip->close();
+	}
+	else {
+		echo "Error: Zip Error";
+	}
+	return $result;
 }
 
 // parsing
@@ -426,7 +428,7 @@ function parse_array( $arrayNode ) {
 function _plist_output($plist, $full = true, $in_array = false)
 {
 	$c = '';
-	
+
 	foreach ($plist as $key => $value)
 	{
 		if (!$in_array)
@@ -451,20 +453,20 @@ function _plist_output($plist, $full = true, $in_array = false)
 			// we got two types of arrays, numeric ones, and keyed ones, which we interpret as dictionary.
 			// lets figure out which one is it
 			$has_symbolic_keys = false;
-			
+
 			foreach (array_keys($value) as $key)
 			{
 				if (!is_numeric($key))
 					$has_symbolic_keys = true;
 			}
-			
+
 			if ($has_symbolic_keys)
 				$c .= "<dict>\n";
 			else
 				$c .= "<array>\n";
-			
+
 			$c .= _plist_output($value, false, !$has_symbolic_keys);
-			
+
 			if ($has_symbolic_keys)
 				$c .= "</dict>\n";
 			else
@@ -479,7 +481,7 @@ function _plist_output($plist, $full = true, $in_array = false)
 		else
 			$c .= "<string>" . htmlspecialchars($value, ENT_NOQUOTES, 'utf-8')."</string>\n";
 	}
-	
+
 	if ($full)
 	{
 		$final = '<?xml version="1.0" encoding="UTF-8"?>';
@@ -502,10 +504,10 @@ function ConvertRevision($v)
 	if (($foundpos = @strpos($v, '-', strlen($v)-5)) !== false)
 	{
 		$v = substr($v, $foundpos+1);
-		
+
 		return intval($v);
 	}
-	
+
 	return 0;
 }
 
@@ -518,7 +520,7 @@ function ConvertVersionStr($v)
 	{
 		$v = substr($v, 0, $foundpos);
 	}
-	
+
 	$DEVELOPMENT_STAGE = 0x20;
 	$ALPHA_STAGE = 0x40;
 	$BETA_STAGE = 0x60;
@@ -532,23 +534,23 @@ function ConvertVersionStr($v)
 	$minor2_2 = 0;
 	$stage = $RELEASE_STAGE;
 	$build = 0;
-	
+
 	$versChars = '';
 	$len = 0;
 	$theVers = 0;
 	$digitsDone = false;
-	
+
 	$len = strlen($v);
-	
+
 	if (($len == 0) || ($len > 12))
 		return 0;
-	
+
 	// Parse version number from string.
     // String can begin with "." for major version number 0.  String can end at any point, but elements within the string cannot be skipped.
-     
+
     // Get major version number.
 	$idx = 0;
-	
+
     $major1 = $major2 = 0;
     if (is_numeric(substr($v, $idx, 1))) {
         $major2 = intval(substr($v, $idx, 1));
@@ -585,7 +587,7 @@ function ConvertVersionStr($v)
     // Now major1 and major2 contain first and second digit of the major version number as ints.
     // Now either len is 0 or chars points at the first char beyond the first decimal point.
 
-    // Get the first minor version number.  
+    // Get the first minor version number.
     if ($len > 0 && !$digitsDone) {
 	    if (is_numeric(substr($v, $idx, 1))) {
 	        $minor1_2 = intval(substr($v, $idx, 1));
@@ -623,7 +625,7 @@ function ConvertVersionStr($v)
     // Now minor1 contains the first minor version number as an int.
     // Now either len is 0 or chars points at the first char beyond the second decimal point.
 
-    // Get the second minor version number. 
+    // Get the second minor version number.
     if ($len > 0 && !$digitsDone) {
 	    if (is_numeric(substr($v, $idx, 1))) {
 	        $minor2_2 = intval(substr($v, $idx, 1));
@@ -710,7 +712,7 @@ function ConvertVersionStr($v)
 
 	//					 00  00  00  00  00  00  80  FF
 	$theVers = sprintf("%01d%01d%01d%01d%01d%01d%02X%02X", $major1, $major2, $minor1, $minor1_2, $minor2, $minor2_2, $stage, $build);
-	
+
     return $theVers;
 }
 ?>

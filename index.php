@@ -15,21 +15,21 @@ require_once("config.inc.php");
 
 ob_start("ob_gzhandler");
 
-$installer_version = @$_REQUEST['installerVersion'];
-$os_version = @$_REQUEST['firmwareVersion'];
-$platform = @$_REQUEST['platform'];
-$deviceUUID = @$_REQUEST['deviceUUID'];
+$installer_version = @sanitizeVariable($_REQUEST['installerVersion']);
+$os_version = @sanitizeVariable($_REQUEST['firmwareVersion']);
+$platform = @sanitizeVariable($_REQUEST['platform']);
+$deviceUUID = @sanitizeVariable($_REQUEST['deviceUUID']);
 
 if (!$os_version)
-	$os_version = '8.0';		// 8.0 is the default
+	$os_version = DEFAULT_FIRMWARE;		// 8.0 is the default
 
-if(!@$_GET['debug'] && !(strstr($_SERVER['HTTP_USER_AGENT'], 'Install') || strstr($_SERVER['HTTP_USER_AGENT'], 'CFNetwork')))
+if(!@sanitizeVariable($_GET['debug']) && !(strstr($_SERVER['HTTP_USER_AGENT'], 'Install') || strstr($_SERVER['HTTP_USER_AGENT'], 'CFNetwork')))
 {
 	include("instructions.php");
 	exit;
 }
 
-$debug = @$_GET['debug'] && ENABLE_DEBUG;
+$debug = @sanitizeVariable($_GET['debug']) && ENABLE_DEBUG;
 
 if ($debug)
 	header('Content-Type: text/plain; charset=utf-8');
@@ -43,6 +43,9 @@ if (!file_exists($index_file))				// if there's no pre-built index cached, retur
 else
 	print file_get_contents($index_file);
 
+ob_end_flush();
+
+
 exit;
 
 function IndexFilename()
@@ -50,6 +53,12 @@ function IndexFilename()
 	global $os_version;
 
 	return (INFO_PATH . "/index-" . $os_version . ".plist");
+}
+
+function sanitizeVariable($variable) {
+	$variable = strip_tags($variable);
+	$variable = filter_var($variable, FILTER_SANITIZE_STRING);
+	return $variable;
 }
 
 ?>

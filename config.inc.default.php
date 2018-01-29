@@ -39,4 +39,6 @@ global $POSSIBLE_FIRMWARE_VERSIONS;
 // Update this array whenever new firmware comes out. The repository will serve empty list of packages for all other versions. This means you have to add subversions of supported iOS versions as well. '8.0'  will only generate a package list for 8.0, not for 8.0.1 or above.
 $POSSIBLE_FIRMWARE_VERSIONS = array( '8.0', '8.0.1', '10.0', '11.1.1' );
 
+define('DEFAULT_FIRMWARE', '8.0');
+
 ?>
