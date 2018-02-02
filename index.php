@@ -13,6 +13,11 @@ require_once("config.inc.php");
 
 // No user serviceable parts beyond this point.
 
+function IndexFilename() {
+	global $os_version;
+	return (INFO_PATH . "/index-" . $os_version . ".plist");
+}
+
 ob_start("ob_gzhandler");
 
 $installer_version = @sanitizeVariable($_REQUEST['installerVersion']);
@@ -20,11 +25,10 @@ $os_version = @sanitizeVariable($_REQUEST['firmwareVersion']);
 $platform = @sanitizeVariable($_REQUEST['platform']);
 $deviceUUID = @sanitizeVariable($_REQUEST['deviceUUID']);
 
-if (!$os_version)
-	$os_version = DEFAULT_FIRMWARE;		// 8.0 is the default
+if (!$os_version || !in_array($os_version, $POSSIBLE_FIRMWARE_VERSIONS))
+	$os_version = DEFAULT_FIRMWARE;
 
-if(!@sanitizeVariable($_GET['debug']) && !(strstr($_SERVER['HTTP_USER_AGENT'], 'Install') || strstr($_SERVER['HTTP_USER_AGENT'], 'CFNetwork')))
-{
+if(!@sanitizeVariable($_GET['debug']) && !(strstr($_SERVER['HTTP_USER_AGENT'], 'Install') || strstr($_SERVER['HTTP_USER_AGENT'], 'CFNetwork'))) {
 	include("instructions.php");
 	exit;
 }
@@ -45,20 +49,6 @@ else
 
 ob_end_flush();
 
-
 exit;
-
-function IndexFilename()
-{
-	global $os_version;
-
-	return (INFO_PATH . "/index-" . $os_version . ".plist");
-}
-
-function sanitizeVariable($variable) {
-	$variable = strip_tags($variable);
-	$variable = filter_var($variable, FILTER_SANITIZE_STRING);
-	return $variable;
-}
 
 ?>

@@ -1,23 +1,23 @@
 <?php
 header("Content-Type: text/plain");
 
+if (!file_exists("config.inc.php"))
+	("config.inc.php does not exist.");
+
 require_once("config.inc.php");
 
 set_time_limit(0);
 
-if (!strlen(REGENERATE_SECRET))
-{
+if (!strlen(REGENERATE_SECRET)) {
 	die("Please set REGENERATE_SECRET in config.inc.php!");
 }
 
-if (!isset($_GET['secret']) || $_GET['secret'] !== REGENERATE_SECRET)
-{
+if (!isset($_GET['secret']) || $_GET['secret'] !== REGENERATE_SECRET) {
 	die("Secret phrase is invalid. Sorry.");
 }
 
 $icons_path = INFO_PATH . "/icons";
-if (!file_exists($icons_path))
-{
+if (!file_exists($icons_path)) {
 	if (!@mkdir($icons_path, 0777))
 		die("Insufficient permissions to " . INFO_PATH . " - cannot create Icons directory. Please check the permissions, they should allow Web server to create files.");
 }
@@ -27,8 +27,7 @@ if (!extension_loaded('zip')) {
 }
 
 // Let's regenerate the indeces.
-foreach ($POSSIBLE_FIRMWARE_VERSIONS as $fw_version)
-{
+foreach ($POSSIBLE_FIRMWARE_VERSIONS as $fw_version) {
 	$os_version = $fw_version;
 	GenerateIndex($fw_version);
 }
@@ -39,8 +38,7 @@ print "All done, thank you!";
 
 exit;
 
-function GenerateIndex($os_version)
-{
+function GenerateIndex($os_version) {
 	print "Generating index for firmware $os_version.\n";
 
 	$dirname = INFO_PATH;
@@ -50,8 +48,7 @@ function GenerateIndex($os_version)
 	$index = generate_index($dirname, INFO_PATH_URL);
 
 	$INDEX = fopen($dirname."/index-" . $os_version . ".plist", "w");
-	if ($INDEX)
-	{
+	if ($INDEX) {
 		fwrite($INDEX, $index);
 		fclose($INDEX);
 		chmod($dirname."/index-" . $os_version . ".plist", 0666);
@@ -60,26 +57,21 @@ function GenerateIndex($os_version)
 	print "\n";
 }
 
-function CleanupOld()
-{
+function CleanupOld() {
 	$dir = opendir(INFO_PATH);
 	if (!$dir)
 		return;
 
-	while ($file = readdir($dir))
-	{
+	while ($file = readdir($dir)) {
 		$fullpath = INFO_PATH.'/'.$file;
 
-		if ($file != '.' && $file != '..' && $file != 'icons')
-		{
+		if ($file != '.' && $file != '..' && $file != 'icons') {
 			$t = filemtime($fullpath);
 
-			if ($t < (time() - CACHE_OLD_TTL))
-			{
+			if ($t < (time() - CACHE_OLD_TTL)) {
 				print "Cleanup: $fullpath\n";
 
-				if (is_dir($fullpath))
-				{
+				if (is_dir($fullpath)) {
 					$handle = opendir($fullpath);
 					for (;false !== ($file = readdir($handle));) if($file != "." && $file != "..") unlink($fullpath.'/'.$file);
 					closedir($handle);
@@ -92,8 +84,7 @@ function CleanupOld()
 	}
 }
 
-function generate_index($info_path, $info_url)
-{
+function generate_index($info_path, $info_url) {
 	global $index;
 	global $packages;
 
@@ -111,13 +102,10 @@ function generate_index($info_path, $info_url)
 	return $index->saveXML();
 }
 
-function gather_categories($info_path, $info_url)
-{
+function gather_categories($info_path, $info_url) {
 	$dir = opendir(PACKAGES_PATH);
-	if ($dir)
-	{
-		while ($path = readdir($dir))
-		{
+	if ($dir) {
+		while ($path = readdir($dir)) {
 			if (substr($path, 0, 1) == '.')
 				continue;
 
@@ -129,8 +117,7 @@ function gather_categories($info_path, $info_url)
 	closedir($dir);
 }
 
-function scan_category($path, $category, $info_path, $info_url)
-{
+function scan_category($path, $category, $info_path, $info_url) {
 	global $packages, $index, $os_version;
 
 	if (!is_dir($path))
@@ -147,34 +134,28 @@ function scan_category($path, $category, $info_path, $info_url)
 
 	$packages_to_add = array();
 
-	while ($file = readdir($dir))
-	{
+	while ($file = readdir($dir)) {
 		$fullpath = $path.'/'.$file;
 
-		if (pathinfo($fullpath, PATHINFO_EXTENSION) == 'zip')
-		{
+		if (pathinfo($fullpath, PATHINFO_EXTENSION) == 'zip') {
 			$pkgInfo = trim(get_from_zip($fullpath, 'Install.plist'));
 
-			if (!$pkgInfo || !strlen($pkgInfo))
-			{
+			if (!$pkgInfo || !strlen($pkgInfo)) {
 				print "WARNING: Cannot add package $fullpath because Install.plist cannot be extracted.\n";
 			}
 
-			if ($pkgInfo and strlen($pkgInfo))
-			{
+			if ($pkgInfo and strlen($pkgInfo)) {
 				$package = new DOMDocument;
 				$package->loadXML($pkgInfo);
 
 				$r = parsePlist($package);
 
-				if (!ConvertVersionStr($r['version']))		// Sanity checking of the version number
-				{
+				if (!ConvertVersionStr($r['version'])) { // Sanity checking of the version number {
 					print "WARNING: Cannot add package $fullpath because version string (".$r['version'].") is malformed.\n";
 					continue;
 				}
 
-				if (isset($r['minOSRequired']))
-				{
+				if (isset($r['minOSRequired'])) {
 					if (ConvertVersionStr($os_version) < ConvertVersionStr($r['minOSRequired']))
 						continue;
 				}
@@ -185,24 +166,19 @@ function scan_category($path, $category, $info_path, $info_url)
 				if (isset($r['bundleIdentifier']))
 					unset($r['bundleIdentifier']);
 
-				if (isset($packages_to_add[$r['identifier']]))
-				{
+				if (isset($packages_to_add[$r['identifier']])) {
 					// check version
 					$existing_version = ConvertVersionStr($packages_to_add[$r['identifier']]['version']);
 					$current_version = ConvertVersionStr($r['version']);
 					$existing_revision = ConvertRevision($packages_to_add[$r['identifier']]['version']);
 					$current_revision = ConvertRevision($r['version']);
 
-					if ($existing_version > $current_version)
-					{
-						die(print_r($r['version'], true));
+					if ($existing_version > $current_version) {
 						$versions_skipped++;
 						continue;
 					}
 
-					if ($existing_version == $current_version && $existing_revision >= $current_revision)
-					{
-						die('toto 2');
+					if ($existing_version == $current_version && $existing_revision >= $current_revision) {
 						$versions_skipped++;
 						continue;
 					}
@@ -217,8 +193,7 @@ function scan_category($path, $category, $info_path, $info_url)
 		}
 	}
 
-	foreach ($packages_to_add as $r)
-	{
+	foreach ($packages_to_add as $r) {
 		$fullpath = $r['fullpath'];
 		$package = $r['package'];
 		$file = $r['file'];
@@ -253,23 +228,19 @@ function scan_category($path, $category, $info_path, $info_url)
 		$dict->appendChild($package->createElement('key', 'description'));
 		$dict->appendChild($package->createElement('string', htmlspecialchars($r['description'], ENT_QUOTES, 'UTF-8')));
 
-		if (@$r['icon'])
-		{
+		if (@$r['icon']) {
 			$dict->appendChild($package->createElement('key', 'icon'));
 			$dict->appendChild($package->createElement('string', htmlspecialchars($r['icon'], ENT_QUOTES, 'UTF-8')));
 		}
-		else
-		{	// Check the icon
+		else {	// Check the icon
 			$icon_file = get_from_zip($fullpath, 'Install.png');
-			if ($icon_file && INCLUDE_ICONS)
-			{
+			if ($icon_file && INCLUDE_ICONS) {
 				$icon_file_name = $r['identifier'] . "-" . $r['version'] . ".png";
 				$icons_path = INFO_PATH . "/icons";
 				@mkdir($icons_path, 0777);
 
 				$FILE = fopen($icons_path . '/' . $icon_file_name, "w");
-				if ($FILE)
-				{
+				if ($FILE) {
 					fwrite($FILE, $icon_file);
 					fclose($FILE);
 					chmod($icons_path . '/' . $icon_file_name, 0666);
@@ -298,8 +269,7 @@ function scan_category($path, $category, $info_path, $info_url)
 
 		// Spool it into the more info file
 		$FILE = fopen($info_path . '/' . $more_info_filename, "w");
-		if ($FILE)
-		{
+		if ($FILE) {
 			fwrite($FILE, _plist_output($r));
 			fclose($FILE);
 			chmod($info_path . '/' . $more_info_filename, 0666);
@@ -311,8 +281,7 @@ function scan_category($path, $category, $info_path, $info_url)
 	print "Category '$category' scanned, $packages_added packages added, $versions_skipped packages skipped.\n";
 }
 
-function get_from_zip($zip_path, $filename)
-{
+function get_from_zip($zip_path, $filename) {
 	$zip = new ZipArchive;
 	$res = $zip->open($zip_path);
 	if ($res === true) {
@@ -425,37 +394,30 @@ function parse_array( $arrayNode ) {
 
 // Converting back
 
-function _plist_output($plist, $full = true, $in_array = false)
-{
+function _plist_output($plist, $full = true, $in_array = false) {
 	$c = '';
 
-	foreach ($plist as $key => $value)
-	{
+	foreach ($plist as $key => $value) {
 		if (!$in_array)
 			$c .= "<key>".htmlspecialchars($key, ENT_NOQUOTES, 'utf-8')."</key>\n";
-		if (is_bool($value))
-		{
+		if (is_bool($value)) {
 			if ($value)
 				$c .= "<true/>\n";
 			else
 				$c .= "<false/>\n";
 		}
-		else if (is_int($value))
-		{
+		else if (is_int($value)) {
 			$c .= "<integer>$value</integer>\n";
 		}
-		else if (is_float($value))
-		{
+		else if (is_float($value)) {
 			$c .= "<float>$value</float>\n";
 		}
-		else if (is_array($value))
-		{
+		else if (is_array($value)) {
 			// we got two types of arrays, numeric ones, and keyed ones, which we interpret as dictionary.
 			// lets figure out which one is it
 			$has_symbolic_keys = false;
 
-			foreach (array_keys($value) as $key)
-			{
+			foreach (array_keys($value) as $key) {
 				if (!is_numeric($key))
 					$has_symbolic_keys = true;
 			}
@@ -472,8 +434,7 @@ function _plist_output($plist, $full = true, $in_array = false)
 			else
 				$c .= "</array>\n";
 		}
-		else if (is_object($value) and is_a($value, "BLOB"))
-		{
+		else if (is_object($value) and is_a($value, "BLOB")) {
 			$c .= "<data>\n";
 			$c .= base64_encode($value->data);
 			$c .= "\n</data>\n";
@@ -482,8 +443,7 @@ function _plist_output($plist, $full = true, $in_array = false)
 			$c .= "<string>" . htmlspecialchars($value, ENT_NOQUOTES, 'utf-8')."</string>\n";
 	}
 
-	if ($full)
-	{
+	if ($full) {
 		$final = '<?xml version="1.0" encoding="UTF-8"?>';
 		$final .= "\n";
 		$final .= '<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">';
@@ -499,10 +459,8 @@ function _plist_output($plist, $full = true, $in_array = false)
 		return $c;
 }
 
-function ConvertRevision($v)
-{
-	if (($foundpos = @strpos($v, '-', strlen($v)-5)) !== false)
-	{
+function ConvertRevision($v) {
+	if (($foundpos = @strpos($v, '-', strlen($v)-5)) !== false) {
 		$v = substr($v, $foundpos+1);
 
 		return intval($v);
@@ -513,11 +471,9 @@ function ConvertRevision($v)
 
 // This is a direct port from C code of a CoreFoundation routine
 
-function ConvertVersionStr($v)
-{
+function ConvertVersionStr($v) {
 	// cut off revision number from the version string
-	if (($foundpos = @strpos($v, '-', strlen($v)-5)) !== false)
-	{
+	if (($foundpos = @strpos($v, '-', strlen($v)-5)) !== false) {
 		$v = substr($v, 0, $foundpos);
 	}
 
