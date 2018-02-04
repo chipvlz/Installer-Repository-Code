@@ -1,5 +1,8 @@
 # Installer BETA Repository Code v0.2.0b
 
+# Fixed in v0.2.1b:
+- Fixed a vulnerability which allowed attacker to execute php code, instructions.php affected. (@CloneVince)
+
 # Fixed in v0.2.0b: 
 - Improved the repository security by sanitizing & refractioning. (@CloneVince)
 - Added French instructions (@CloneVince)
